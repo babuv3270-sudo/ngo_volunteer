@@ -1,0 +1,39 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Profile images: users/{userId}/profile.{ext}
+    match /users/{userId}/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // Opportunity images: opportunities/{oppId}/cover.{ext}
+    match /opportunities/{oppId}/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // Event images: events/{eventId}/cover.{ext}
+    match /events/{eventId}/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    // NGO logos: ngos/{ngoId}/logo.{ext}
+    match /ngos/{ngoId}/{filename} {
+      allow read: if signedIn();
+      allow write: if signedIn()
+        && request.auth.uid == ngoId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

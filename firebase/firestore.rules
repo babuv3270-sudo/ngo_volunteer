@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isSameOrg(docPath) {
+      return get(docPath).data.ngoId == resource.data.ngoId;
+    }
+
+    function roleIn(role) {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    // ---------- USERS ----------
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // ---------- NGOS ----------
+    match /ngos/{ngoId} {
+      allow read: if signedIn();
+      allow create: if isOwner(ngoId);
+      allow update: if isOwner(ngoId);
+      allow delete: if isOwner(ngoId);
+    }
+
+    // ---------- OPPORTUNITIES ----------
+    match /opportunities/{oppId} {
+      allow read: if signedIn();
+      allow create: if roleIn('ngo') && request.resource.data.ngoId == request.auth.uid;
+      allow update, delete: if roleIn('ngo') && resource.data.ngoId == request.auth.uid;
+    }
+
+    // ---------- APPLICATIONS ----------
+    match /applications/{appId} {
+      allow read: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForApp(resource.data));
+      allow create: if signedIn()
+        && request.resource.data.volunteerId == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForApp(resource.data));
+      allow delete: if signedIn()
+        && resource.data.volunteerId == request.auth.uid;
+
+      function isNgoForApp(data) {
+        return roleIn('ngo')
+          && get(/databases/$(database)/documents/opportunities/$(data.opportunityId)).data.ngoId == request.auth.uid;
+      }
+    }
+
+    // ---------- EVENTS ----------
+    match /events/{eventId} {
+      allow read: if signedIn();
+      allow create: if roleIn('ngo') && request.resource.data.ngoId == request.auth.uid;
+      allow update, delete: if roleIn('ngo') && resource.data.ngoId == request.auth.uid;
+    }
+
+    // ---------- EVENT REGISTRATIONS ----------
+    match /eventRegistrations/{regId} {
+      allow read: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForReg(resource.data));
+      allow create: if signedIn()
+        && request.resource.data.volunteerId == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForReg(resource.data));
+      allow delete: if signedIn()
+        && resource.data.volunteerId == request.auth.uid;
+
+      function isNgoForReg(data) {
+        return roleIn('ngo')
+          && get(/databases/$(database)/documents/events/$(data.eventId)).data.ngoId == request.auth.uid;
+      }
+    }
+
+    // ---------- VOLUNTEER HOURS ----------
+    match /volunteerHours/{hourId} {
+      allow read: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForHour(resource.data));
+      allow create, update: if signedIn()
+        && (resource.data.volunteerId == request.auth.uid
+            || isNgoForHour(resource.data));
+      allow delete: if signedIn();
+    }
+
+    // ---------- NOTIFICATIONS ----------
+    match /notifications/{notificationId} {
+      allow read, update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if signedIn();
+    }
+  }
+}
